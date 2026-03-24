@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   title: "Sample Work",
   description:
     "Honest demo case studies and example workflows that show how BookedLoop improves booking flow, reviews, and follow-up systems for local service businesses.",
+  alternates: { canonical: "/sample-work" },
 };
 
 export default function SampleWorkPage() {

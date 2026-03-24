@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   title: "About",
   description:
     "About BookedLoop: a practical growth-focused agency helping local service businesses improve bookings, reviews, follow-up, and online presence.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

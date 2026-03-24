@@ -14,11 +14,37 @@ export const metadata: Metadata = {
   title: "Services",
   description:
     "BookedLoop services and pricing for local service businesses: website setup, booking add-ons, review automation, social management, lead follow-up, Google profile optimization, and local SEO.",
+  alternates: { canonical: "/services" },
 };
 
 export default function ServicesPage() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: services.map((svc, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "Service",
+        name: svc.name,
+        description: svc.description,
+        provider: {
+          "@type": "Organization",
+          name: site.name,
+          url: site.url,
+        },
+        areaServed: "US",
+        url: `${site.url}${svc.href}`,
+      },
+    })),
+  };
+
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60rem_30rem_at_10%_0%,color-mix(in_srgb,var(--accent-2)_22%,transparent),transparent_70%)]" />
         <Container className="relative py-16 sm:py-20">

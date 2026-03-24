@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   title: "Pricing",
   description:
     "BookedLoop pricing for local service businesses. Clear starting points, optional support, and custom bundles available.",
+  alternates: { canonical: "/pricing" },
 };
 
 export default function PricingPage() {

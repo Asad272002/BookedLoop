@@ -14,6 +14,19 @@ import { services } from "@/lib/content/services";
 import { site } from "@/lib/site";
 
 export default function HomePage() {
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
+
   return (
     <div>
       <section className="relative overflow-hidden">
@@ -326,6 +339,10 @@ export default function HomePage() {
               </p>
             </div>
             <div className="grid gap-3">
+              <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+              />
               {faqs.map((item) => (
                 <details
                   key={item.question}

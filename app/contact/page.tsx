@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: "Contact",
   description:
     "Book a free audit or request help from BookedLoop. Simple form, fast response, and clear next steps for local service businesses.",
+  alternates: { canonical: "/contact" },
 };
 
 export default function ContactPage() {
