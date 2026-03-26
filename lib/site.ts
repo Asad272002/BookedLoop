@@ -8,8 +8,8 @@ export const site = {
     freeAuditUrl: "https://calendar.app.google/REk7kpgnExHdUx299",
   },
   contact: {
-    email: "hello@bookedloop.com",
-    phone: "(555) 555-5555",
+    email: "bookedloopofficial@gmail.com",
+    phone: "",
   },
   social: {
     x: "",

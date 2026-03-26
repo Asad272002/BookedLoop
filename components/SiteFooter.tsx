@@ -56,9 +56,11 @@ export function SiteFooter() {
               <a className="hover:text-[var(--foreground)]" href={`mailto:${site.contact.email}`}>
                 {site.contact.email}
               </a>
-              <a className="hover:text-[var(--foreground)]" href={`tel:${site.contact.phone}`}>
-                {site.contact.phone}
-              </a>
+              {site.contact.phone ? (
+                <a className="hover:text-[var(--foreground)]" href={`tel:${site.contact.phone}`}>
+                  {site.contact.phone}
+                </a>
+              ) : null}
               <div className="pt-2 text-xs text-[color-mix(in_srgb,var(--foreground)_55%,transparent)]">
                 Social links: add your URLs in lib/site.ts
               </div>
