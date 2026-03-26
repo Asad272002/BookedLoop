@@ -16,6 +16,13 @@ export async function middleware(req: NextRequest) {
   const url = new URL(req.url);
   const res = NextResponse.next();
 
+  const host = req.headers.get("host") ?? "";
+  if (host.startsWith("www.bookedloop.com")) {
+    url.host = "bookedloop.com";
+    url.protocol = "https:";
+    return NextResponse.redirect(url);
+  }
+
   const isAdminPath = url.pathname.startsWith("/admin");
   const isLogin = url.pathname === "/admin/login";
   const isLogout = url.pathname === "/admin/logout";
@@ -44,8 +51,11 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
+            const domain =
+              isProd && host.endsWith("bookedloop.com") ? ".bookedloop.com" : options?.domain;
             res.cookies.set(name, value, {
               ...options,
+              domain,
               path: options?.path ?? "/",
               sameSite: options?.sameSite ?? "lax",
               secure: options?.secure ?? isProd,

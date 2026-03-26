@@ -3,7 +3,7 @@ import { Input, Label } from "@/components/ui/Field";
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { supabaseServer } from "@/lib/supabase/server";
 import { FadeUp, Stagger } from "@/components/AnimateIn";
@@ -16,6 +16,11 @@ export default async function AdminLoginPage({
   async function action(formData: FormData) {
     "use server";
     const debug = process.env.BL_DEBUG_AUTH === "1";
+    const host = (await headers()).get("host") ?? "";
+    const domain =
+      process.env.NODE_ENV === "production" && host.endsWith("bookedloop.com")
+        ? ".bookedloop.com"
+        : undefined;
     const username = String(formData.get("username") || "");
     const password = String(formData.get("password") || "");
     if (!username || !password) {
@@ -51,6 +56,7 @@ export default async function AdminLoginPage({
           cookiesToSet.forEach(({ name, value, options }) => {
             jar.set(name, value, {
               ...options,
+              domain: domain ?? options?.domain,
               path: options?.path ?? "/",
               sameSite: options?.sameSite ?? "lax",
               secure: options?.secure ?? process.env.NODE_ENV === "production",
