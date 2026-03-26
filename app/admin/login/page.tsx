@@ -49,6 +49,8 @@ export default async function AdminLoginPage({
         setAll(cookiesToSet) {
           if (debug) {
             console.log("[auth-debug] login setAll", {
+              host,
+              domain,
               cookieNames: cookiesToSet.map((c) => c.name),
               cookieCount: cookiesToSet.length,
             });
@@ -68,10 +70,24 @@ export default async function AdminLoginPage({
         },
       },
     });
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: profile.email,
-      password,
-    });
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["data"];
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["error"];
+    try {
+      const res = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password,
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      if (debug) {
+        console.log("[auth-debug] login signIn exception", {
+          host,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+      redirect("/admin/login?error=invalid");
+    }
     if (debug) {
       console.log("[auth-debug] login signIn result", { ok: Boolean(data.session), hasError: Boolean(error) });
     }
@@ -79,7 +95,16 @@ export default async function AdminLoginPage({
       redirect("/admin/login?error=invalid");
     }
 
-    await supabase.auth.getSession();
+    const sess = await supabase.auth.getSession();
+    if (debug) {
+      console.log("[auth-debug] login getSession", {
+        ok: Boolean(sess.data.session),
+        err: sess.error ? sess.error.message : null,
+      });
+      console.log("[auth-debug] login jar cookies", {
+        cookieNames: (await cookies()).getAll().map((c) => c.name).filter((n) => n.startsWith("sb-")),
+      });
+    }
 
     const role = (data.user?.app_metadata?.role as string | undefined) ?? profile.role;
     if (role === "caller") redirect("/admin/calls");

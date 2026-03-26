@@ -79,13 +79,25 @@ export async function middleware(req: NextRequest) {
         console.log("[auth-debug] middleware", {
           host: req.headers.get("host"),
           path: url.pathname,
+          method: req.method,
+          referer: req.headers.get("referer"),
           isProd,
           isLogin,
           isLogout,
           cookieCount: cookieNames.length,
           hasSupabaseCookie,
+          cookieNames: cookieNames.filter((n) => n.startsWith("sb-")),
           getSession: { ok: Boolean(finalUser), err: sessionErr ? sessionErr.message : null },
         });
+        res.headers.set(
+          "x-auth-debug",
+          JSON.stringify({
+            p: url.pathname,
+            sb: hasSupabaseCookie ? 1 : 0,
+            s: finalUser ? 1 : 0,
+            e: sessionErr ? 1 : 0,
+          })
+        );
       }
 
       if (!finalUser && !isLogin) {
@@ -114,6 +126,7 @@ export async function middleware(req: NextRequest) {
         console.log("[auth-debug] middleware exception", {
           host: req.headers.get("host"),
           path: url.pathname,
+          method: req.method,
           message: err instanceof Error ? err.message : String(err),
         });
       }
