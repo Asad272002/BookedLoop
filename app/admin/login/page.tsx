@@ -15,6 +15,7 @@ export default async function AdminLoginPage({
 }) {
   async function action(formData: FormData) {
     "use server";
+    const debug = process.env.BL_DEBUG_AUTH === "1";
     const username = String(formData.get("username") || "");
     const password = String(formData.get("password") || "");
     if (!username || !password) {
@@ -41,6 +42,12 @@ export default async function AdminLoginPage({
           return jar.getAll().map(({ name, value }) => ({ name, value }));
         },
         setAll(cookiesToSet) {
+          if (debug) {
+            console.log("[auth-debug] login setAll", {
+              cookieNames: cookiesToSet.map((c) => c.name),
+              cookieCount: cookiesToSet.length,
+            });
+          }
           cookiesToSet.forEach(({ name, value, options }) => {
             jar.set(name, value, {
               ...options,
@@ -56,6 +63,9 @@ export default async function AdminLoginPage({
       email: profile.email,
       password,
     });
+    if (debug) {
+      console.log("[auth-debug] login signIn result", { ok: Boolean(data.session), hasError: Boolean(error) });
+    }
     if (error || !data.session) {
       redirect("/admin/login?error=invalid");
     }
