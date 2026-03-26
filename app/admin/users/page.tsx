@@ -48,6 +48,16 @@ export default async function UsersPage({
       getAll() {
         return jar.getAll().map(({ name, value }) => ({ name, value }));
       },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          jar.set(name, value, {
+            ...options,
+            path: options?.path ?? "/",
+            sameSite: options?.sameSite ?? "lax",
+            secure: options?.secure ?? process.env.NODE_ENV === "production",
+          });
+        });
+      },
     },
   });
   const isProd = process.env.NODE_ENV === "production";

@@ -32,15 +32,22 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, { ...options, path: options?.path ?? "/" });
+            res.cookies.set(name, value, {
+              ...options,
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+              secure: options?.secure ?? isProd,
+            });
           });
         },
       },
     });
 
     try {
-      const session = isProd ? (await supabase.auth.getSession()).data.session : null;
-      const user = isProd ? session?.user ?? null : (await supabase.auth.getUser()).data.user ?? null;
+      let user = (await supabase.auth.getUser()).data.user ?? null;
+      if (!user) {
+        user = (await supabase.auth.getSession()).data.session?.user ?? null;
+      }
 
       if (!user && !isLogin) {
         return NextResponse.redirect(new URL("/admin/login", req.url));

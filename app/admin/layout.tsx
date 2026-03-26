@@ -29,6 +29,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       getAll() {
         return jar.getAll().map(({ name, value }) => ({ name, value }));
       },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          jar.set(name, value, {
+            ...options,
+            path: options?.path ?? "/",
+            sameSite: options?.sameSite ?? "lax",
+            secure: options?.secure ?? process.env.NODE_ENV === "production",
+          });
+        });
+      },
     },
   });
   const isProd = process.env.NODE_ENV === "production";
@@ -46,7 +56,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           { href: "/admin/proposals", label: "Proposals" },
           { href: "/admin/invoices", label: "Invoices" },
           { href: "/admin/users", label: "Users" },
-          { href: "/admin/settings", label: "Settings" },
         ]
       : role === "manager"
         ? [

@@ -42,7 +42,12 @@ export default async function AdminLoginPage({
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            jar.set(name, value, { ...options, path: options?.path ?? "/" });
+            jar.set(name, value, {
+              ...options,
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+              secure: options?.secure ?? process.env.NODE_ENV === "production",
+            });
           });
         },
       },
@@ -76,11 +81,11 @@ export default async function AdminLoginPage({
           <form action={action} className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-6">
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" name="username" />
+              <Input id="username" name="username" autoComplete="username" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" />
+              <Input id="password" name="password" type="password" autoComplete="current-password" />
             </div>
             <Button type="submit" className="w-full">
               Sign in
