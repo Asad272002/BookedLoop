@@ -111,11 +111,12 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
           },
         },
       });
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { data: me } = user
-        ? await admin.from("users").select("id").eq("auth_user_id", user.id).maybeSingle()
+      const isProd = process.env.NODE_ENV === "production";
+      const authUserId = isProd
+        ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+        : (await supabase.auth.getUser()).data.user?.id ?? null;
+      const { data: me } = authUserId
+        ? await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle()
         : { data: null };
       if (me?.id) await admin.from("notes").insert({ business_id: id, user_id: me.id, note_text: note });
     }

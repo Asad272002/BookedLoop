@@ -37,10 +37,11 @@ export default function NewLeadPage() {
         },
       },
     });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/admin/login");
+    const isProd = process.env.NODE_ENV === "production";
+    const authUserId = isProd
+      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    if (!authUserId) redirect("/admin/login");
 
     const parsed = leadSchema.safeParse({
       business_name: String(formData.get("business_name") || "").trim(),
@@ -60,7 +61,7 @@ export default function NewLeadPage() {
     const leadScore = v.lead_score ? Number(v.lead_score) : null;
 
     const admin = supabaseServer();
-    const { data: me } = await admin.from("users").select("id, role").eq("auth_user_id", user.id).maybeSingle();
+    const { data: me } = await admin.from("users").select("id, role").eq("auth_user_id", authUserId).maybeSingle();
     if (!me?.id || (me.role !== "admin" && me.role !== "manager")) redirect("/admin/leads");
     const { data: biz, error } = await admin
       .from("businesses")

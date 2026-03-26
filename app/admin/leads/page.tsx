@@ -111,10 +111,11 @@ export default async function LeadsPage({
       },
     },
   });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: me } = user ? await admin.from("users").select("role").eq("auth_user_id", user.id).maybeSingle() : { data: null };
+  const isProd = process.env.NODE_ENV === "production";
+  const authUserId = isProd
+    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const { data: me } = authUserId ? await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle() : { data: null };
   const currentRole = (me?.role as string | null) ?? "caller";
 
   async function importCsv(formData: FormData) {
@@ -132,12 +133,13 @@ export default async function LeadsPage({
         },
       },
     });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/admin/login");
+    const isProd = process.env.NODE_ENV === "production";
+    const authUserId = isProd
+      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    if (!authUserId) redirect("/admin/login");
     const admin = supabaseServer();
-    const { data: me } = await admin.from("users").select("role").eq("auth_user_id", user.id).maybeSingle();
+    const { data: me } = await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle();
     if (me?.role !== "admin") redirect("/admin/leads?error=forbidden");
 
     const file = formData.get("file");

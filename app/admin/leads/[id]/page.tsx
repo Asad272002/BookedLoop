@@ -112,10 +112,11 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       },
     },
   });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: me } = user ? await admin.from("users").select("id").eq("auth_user_id", user.id).maybeSingle() : { data: null };
+  const isProd = process.env.NODE_ENV === "production";
+  const authUserId = isProd
+    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const { data: me } = authUserId ? await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle() : { data: null };
 
   async function addNote(formData: FormData) {
     "use server";
@@ -134,12 +135,13 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
         },
       },
     });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/admin/login");
+    const isProd = process.env.NODE_ENV === "production";
+    const authUserId = isProd
+      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    if (!authUserId) redirect("/admin/login");
     const admin = supabaseServer();
-    const { data: me } = await admin.from("users").select("id").eq("auth_user_id", user.id).maybeSingle();
+    const { data: me } = await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle();
     if (!me?.id) redirect(`/admin/leads/${id}`);
     await admin.from("notes").insert({ business_id: id, user_id: me.id, note_text: note });
     redirect(`/admin/leads/${id}`);

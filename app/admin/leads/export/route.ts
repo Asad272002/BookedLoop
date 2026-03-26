@@ -44,16 +44,17 @@ export async function GET(req: Request) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return new NextResponse("Unauthorized", { status: 401 });
+  const isProd = process.env.NODE_ENV === "production";
+  const authUserId = isProd
+    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  if (!authUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const admin = supabaseServer();
   const { data: me } = await admin
     .from("users")
     .select("role")
-    .eq("auth_user_id", user.id)
+    .eq("auth_user_id", authUserId)
     .maybeSingle();
   if (me?.role !== "admin") return new NextResponse("Forbidden", { status: 403 });
 

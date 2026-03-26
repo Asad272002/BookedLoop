@@ -17,6 +17,7 @@ export async function middleware(req: NextRequest) {
   const isLogout = url.pathname === "/admin/logout";
 
   if (isAdminPath) {
+    const isProd = process.env.NODE_ENV === "production";
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!supabaseUrl || !supabaseKey) {
@@ -38,22 +39,21 @@ export async function middleware(req: NextRequest) {
     });
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = isProd ? (await supabase.auth.getSession()).data.session : null;
+      const user = isProd ? session?.user ?? null : (await supabase.auth.getUser()).data.user ?? null;
 
-    if (!session && !isLogin) {
-      return NextResponse.redirect(new URL("/admin/login", req.url));
-    }
-    if (session && isLogin) {
-      return NextResponse.redirect(new URL("/admin", req.url));
-    }
-    if (session && !isLogin && !isLogout) {
-      const role = toRole(session.user.app_metadata?.role);
-      if (!canAccess(url.pathname, role)) {
+      if (!user && !isLogin) {
+        return NextResponse.redirect(new URL("/admin/login", req.url));
+      }
+      if (user && isLogin) {
         return NextResponse.redirect(new URL("/admin", req.url));
       }
-    }
+      if (user && !isLogin && !isLogout) {
+        const role = toRole(user.app_metadata?.role);
+        if (!canAccess(url.pathname, role)) {
+          return NextResponse.redirect(new URL("/admin", req.url));
+        }
+      }
     } catch {
       if (isLogin || isLogout) return res;
       return NextResponse.redirect(new URL("/admin/login", req.url));

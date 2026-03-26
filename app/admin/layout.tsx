@@ -31,10 +31,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       },
     },
   });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const role = ((user?.app_metadata?.role as Role | undefined) ?? "caller") as Role;
+  const isProd = process.env.NODE_ENV === "production";
+  const role = (isProd
+    ? ((await supabase.auth.getSession()).data.session?.user.app_metadata?.role as Role | undefined)
+    : ((await supabase.auth.getUser()).data.user?.app_metadata?.role as Role | undefined)) ?? "caller";
 
   const nav =
     role === "admin"

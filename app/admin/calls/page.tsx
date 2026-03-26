@@ -62,13 +62,14 @@ export default async function CallsPage({
       },
     },
   });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
+  const isProd = process.env.NODE_ENV === "production";
+  const authUserId = isProd
+    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  if (!authUserId) redirect("/admin/login");
 
   const admin = supabaseServer();
-  const { data: me } = await admin.from("users").select("id, role").eq("auth_user_id", user.id).maybeSingle();
+  const { data: me } = await admin.from("users").select("id, role").eq("auth_user_id", authUserId).maybeSingle();
   if (!me?.id) redirect("/admin/login");
 
   async function logCall(formData: FormData) {
@@ -95,13 +96,14 @@ export default async function CallsPage({
         },
       },
     });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/admin/login");
+    const isProd = process.env.NODE_ENV === "production";
+    const authUserId = isProd
+      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    if (!authUserId) redirect("/admin/login");
 
     const admin = supabaseServer();
-    const { data: me } = await admin.from("users").select("id").eq("auth_user_id", user.id).maybeSingle();
+    const { data: me } = await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle();
     if (!me?.id) redirect("/admin/calls?error=invalid");
 
     const next_follow_up_at = nextFollowUpRaw ? new Date(nextFollowUpRaw).toISOString() : null;

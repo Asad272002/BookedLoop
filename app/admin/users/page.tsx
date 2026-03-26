@@ -50,11 +50,10 @@ export default async function UsersPage({
       },
     },
   });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const role = (user?.app_metadata?.role as string | undefined) ?? "caller";
+  const isProd = process.env.NODE_ENV === "production";
+  const role = isProd
+    ? ((await supabase.auth.getSession()).data.session?.user.app_metadata?.role as string | undefined) ?? "caller"
+    : ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
   if (role !== "admin") redirect("/admin");
 
   async function createUser(formData: FormData) {
