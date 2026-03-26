@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { site } from "@/lib/site";
 import { Button } from "@/components/ui/Button";
+import { FadeUp } from "@/components/AnimateIn";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import type { Role } from "@/lib/auth/roles";
@@ -100,7 +101,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               ) : null}
             </div>
           </header>
-          <div className="p-4">{children}</div>
+          <FadeUp className="p-4">{children}</FadeUp>
         </main>
       </div>
     </div>

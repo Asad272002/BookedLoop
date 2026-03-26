@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          jar.set(name, value, options);
+          jar.set(name, value, { ...options, path: options?.path ?? "/" });
         });
       },
     },

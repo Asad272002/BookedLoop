@@ -108,7 +108,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
         return jar.getAll().map(({ name, value }) => ({ name, value }));
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, options));
+        cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
       },
     },
   });
@@ -130,7 +130,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           return jar.getAll().map(({ name, value }) => ({ name, value }));
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
         },
       },
     });

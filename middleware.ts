@@ -31,7 +31,7 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, options);
+            res.cookies.set(name, value, { ...options, path: options?.path ?? "/" });
           });
         },
       },
@@ -39,17 +39,17 @@ export async function middleware(req: NextRequest) {
 
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!user && !isLogin) {
+    if (!session && !isLogin) {
       return NextResponse.redirect(new URL("/admin/login", req.url));
     }
-    if (user && isLogin) {
+    if (session && isLogin) {
       return NextResponse.redirect(new URL("/admin", req.url));
     }
-    if (user && !isLogin && !isLogout) {
-      const role = toRole(user.app_metadata?.role);
+    if (session && !isLogin && !isLogout) {
+      const role = toRole(session.user.app_metadata?.role);
       if (!canAccess(url.pathname, role)) {
         return NextResponse.redirect(new URL("/admin", req.url));
       }
