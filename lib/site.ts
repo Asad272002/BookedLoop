@@ -5,7 +5,7 @@ export const site = {
     "BookedLoop helps local service businesses turn missed leads into booked clients with a cleaner online presence, better booking flows, review automation, and practical follow-up systems.",
   url: "https://bookedloop.com",
   booking: {
-    freeAuditUrl: "https://calendar.app.google/4EBvCxGmZKituHH17",
+    freeAuditUrl: "https://calendar.app.google/REk7kpgnExHdUx299",
   },
   contact: {
     email: "hello@bookedloop.com",
@@ -19,7 +19,7 @@ export const site = {
   ctas: {
     primary: {
       label: "Book a Free Audit",
-      href: "https://calendar.app.google/4EBvCxGmZKituHH17",
+      href: "https://calendar.app.google/REk7kpgnExHdUx299",
     },
     secondary: {
       label: "View Services",
