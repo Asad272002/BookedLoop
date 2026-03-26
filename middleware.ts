@@ -24,7 +24,7 @@ export async function middleware(req: NextRequest) {
   }
 
   const isAdminPath = url.pathname.startsWith("/admin");
-  const isLogin = url.pathname === "/admin/login";
+  const isLogin = url.pathname === "/admin/login" || url.pathname.startsWith("/admin/login/");
   const isLogout = url.pathname === "/admin/logout";
 
   if (isAdminPath) {
