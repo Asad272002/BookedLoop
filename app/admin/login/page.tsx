@@ -2,10 +2,6 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import Link from "next/link";
 import { site } from "@/lib/site";
-import { redirect } from "next/navigation";
-import { cookies, headers } from "next/headers";
-import { createServerClient } from "@supabase/auth-helpers-nextjs";
-import { supabaseServer } from "@/lib/supabase/server";
 import { FadeUp, Stagger } from "@/components/AnimateIn";
 
 export default async function AdminLoginPage({
@@ -13,104 +9,6 @@ export default async function AdminLoginPage({
 }: {
   searchParams?: Promise<{ error?: string }>;
 }) {
-  async function action(formData: FormData) {
-    "use server";
-    const debug = process.env.BL_DEBUG_AUTH === "1";
-    const host = (await headers()).get("host") ?? "";
-    const domain =
-      process.env.NODE_ENV === "production" && host.endsWith("bookedloop.com")
-        ? ".bookedloop.com"
-        : undefined;
-    const username = String(formData.get("username") || "");
-    const password = String(formData.get("password") || "");
-    if (!username || !password) {
-      redirect("/admin/login?error=invalid");
-    }
-
-    const admin = supabaseServer();
-    const { data: profile } = await admin
-      .from("users")
-      .select("email, role, is_active")
-      .eq("username", username)
-      .maybeSingle();
-
-    if (!profile || profile.is_active === false) {
-      redirect("/admin/login?error=invalid");
-    }
-
-    const jar = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() {
-          return jar.getAll().map(({ name, value }) => ({ name, value }));
-        },
-        setAll(cookiesToSet) {
-          if (debug) {
-            console.log("[auth-debug] login setAll", {
-              host,
-              domain,
-              cookieNames: cookiesToSet.map((c) => c.name),
-              cookieCount: cookiesToSet.length,
-            });
-          }
-          cookiesToSet.forEach(({ name, value, options }) => {
-            if (domain) {
-              jar.set(name, "", { path: options?.path ?? "/", maxAge: 0 });
-            }
-            jar.set(name, value, {
-              ...options,
-              domain: domain ?? options?.domain,
-              path: options?.path ?? "/",
-              sameSite: options?.sameSite ?? "lax",
-              secure: options?.secure ?? process.env.NODE_ENV === "production",
-            });
-          });
-        },
-      },
-    });
-    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["data"];
-    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>["error"];
-    try {
-      const res = await supabase.auth.signInWithPassword({
-        email: profile.email,
-        password,
-      });
-      data = res.data;
-      error = res.error;
-    } catch (e) {
-      if (debug) {
-        console.log("[auth-debug] login signIn exception", {
-          host,
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-      redirect("/admin/login?error=invalid");
-    }
-    if (debug) {
-      console.log("[auth-debug] login signIn result", { ok: Boolean(data.session), hasError: Boolean(error) });
-    }
-    if (error || !data.session) {
-      redirect("/admin/login?error=invalid");
-    }
-
-    const sess = await supabase.auth.getSession();
-    if (debug) {
-      console.log("[auth-debug] login getSession", {
-        ok: Boolean(sess.data.session),
-        err: sess.error ? sess.error.message : null,
-      });
-      console.log("[auth-debug] login jar cookies", {
-        cookieNames: (await cookies()).getAll().map((c) => c.name).filter((n) => n.startsWith("sb-")),
-      });
-    }
-
-    const role = (data.user?.app_metadata?.role as string | undefined) ?? profile.role;
-    if (role === "caller") redirect("/admin/calls");
-    redirect("/admin");
-  }
-
   const sp = (await searchParams) ?? {};
 
   return (
@@ -124,7 +22,7 @@ export default async function AdminLoginPage({
           ) : null}
         </FadeUp>
         <FadeUp>
-          <form action={action} className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-6">
+          <form method="post" action="/admin/login/action" className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-6">
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <Input id="username" name="username" autoComplete="username" />
