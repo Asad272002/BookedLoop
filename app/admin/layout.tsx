@@ -9,8 +9,20 @@ import type { Role } from "@/lib/auth/roles";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+        <div className="mx-auto max-w-2xl px-4 py-16">
+          <div className="text-lg font-semibold tracking-tight">Admin is not configured</div>
+          <div className="mt-2 text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
+            Missing Supabase environment variables in production.
+          </div>
+        </div>
+      </div>
+    );
+  }
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {

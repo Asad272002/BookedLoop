@@ -11,30 +11,37 @@ function toRole(value: unknown): Role {
 export async function middleware(req: NextRequest) {
   const url = new URL(req.url);
   const res = NextResponse.next();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return req.cookies.getAll().map(({ name, value }) => ({ name, value }));
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          res.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const isAdminPath = url.pathname.startsWith("/admin");
   const isLogin = url.pathname === "/admin/login";
   const isLogout = url.pathname === "/admin/logout";
 
   if (isAdminPath) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      if (isLogin || isLogout) return res;
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll().map(({ name, value }) => ({ name, value }));
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
     if (!user && !isLogin) {
       return NextResponse.redirect(new URL("/admin/login", req.url));
     }
@@ -46,6 +53,10 @@ export async function middleware(req: NextRequest) {
       if (!canAccess(url.pathname, role)) {
         return NextResponse.redirect(new URL("/admin", req.url));
       }
+    }
+    } catch {
+      if (isLogin || isLogout) return res;
+      return NextResponse.redirect(new URL("/admin/login", req.url));
     }
   }
 
