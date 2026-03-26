@@ -3,6 +3,10 @@ import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 
 export async function GET(req: Request) {
+  return new NextResponse(null, { status: 204, headers: { "cache-control": "no-store" } });
+}
+
+export async function POST(req: Request) {
   const jar = await cookies();
   const host = (await headers()).get("host") ?? "";
   const domain =

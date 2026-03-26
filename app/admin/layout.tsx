@@ -91,12 +91,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {item.label}
               </Link>
             ))}
-            <Link
-              href="/admin/logout"
-              className="mt-2 rounded-md px-3 py-2 text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:text-[var(--foreground)]"
-            >
-              Logout
-            </Link>
+            <form method="post" action="/admin/logout" className="mt-2">
+              <button
+                type="submit"
+                className="w-full rounded-md px-3 py-2 text-left text-[color-mix(in_srgb,var(--foreground)_78%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:text-[var(--foreground)]"
+              >
+                Logout
+              </button>
+            </form>
           </nav>
         </aside>
         <main className="flex-1">

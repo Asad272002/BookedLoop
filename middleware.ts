@@ -100,7 +100,7 @@ export async function middleware(req: NextRequest) {
         );
       }
 
-      if (!finalUser && !isLogin) {
+      if (!finalUser && !isLogin && !isLogout) {
         if (authDebugEnabled()) {
           console.log("[auth-debug] redirect -> /admin/login (no user)", { path: url.pathname });
         }
