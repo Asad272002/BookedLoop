@@ -53,6 +53,9 @@ export async function middleware(req: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) => {
             const domain =
               isProd && host.endsWith("bookedloop.com") ? ".bookedloop.com" : options?.domain;
+            if (domain === ".bookedloop.com") {
+              res.cookies.set(name, "", { path: options?.path ?? "/", maxAge: 0 });
+            }
             res.cookies.set(name, value, {
               ...options,
               domain,

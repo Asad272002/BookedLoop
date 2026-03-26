@@ -31,5 +31,14 @@ export async function GET(req: Request) {
   });
 
   await supabase.auth.signOut();
+  if (domain) {
+    jar
+      .getAll()
+      .filter((c) => c.name.startsWith("sb-"))
+      .forEach((c) => {
+        jar.set(c.name, "", { path: "/", maxAge: 0 });
+        jar.set(c.name, "", { path: "/", domain, maxAge: 0 });
+      });
+  }
   return NextResponse.redirect(new URL("/admin/login", req.url));
 }

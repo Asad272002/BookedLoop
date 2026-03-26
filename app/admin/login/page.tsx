@@ -54,6 +54,9 @@ export default async function AdminLoginPage({
             });
           }
           cookiesToSet.forEach(({ name, value, options }) => {
+            if (domain) {
+              jar.set(name, "", { path: options?.path ?? "/", maxAge: 0 });
+            }
             jar.set(name, value, {
               ...options,
               domain: domain ?? options?.domain,
