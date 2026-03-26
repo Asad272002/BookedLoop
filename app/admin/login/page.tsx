@@ -70,6 +70,8 @@ export default async function AdminLoginPage({
       redirect("/admin/login?error=invalid");
     }
 
+    await supabase.auth.getSession();
+
     const role = (data.user?.app_metadata?.role as string | undefined) ?? profile.role;
     if (role === "caller") redirect("/admin/calls");
     redirect("/admin");

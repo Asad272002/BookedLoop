@@ -59,13 +59,8 @@ export async function middleware(req: NextRequest) {
       const cookieNames = req.cookies.getAll().map((c) => c.name);
       const hasSupabaseCookie = cookieNames.some((n) => n.startsWith("sb-"));
 
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      const user = userData.user ?? null;
-
       const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      const sessionUser = sessionData.session?.user ?? null;
-
-      const finalUser = user ?? sessionUser;
+      const finalUser = sessionData.session?.user ?? null;
 
       if (authDebugEnabled()) {
         console.log("[auth-debug] middleware", {
@@ -76,8 +71,7 @@ export async function middleware(req: NextRequest) {
           isLogout,
           cookieCount: cookieNames.length,
           hasSupabaseCookie,
-          getUser: { ok: Boolean(user), err: userErr ? userErr.message : null },
-          getSession: { ok: Boolean(sessionUser), err: sessionErr ? sessionErr.message : null },
+          getSession: { ok: Boolean(finalUser), err: sessionErr ? sessionErr.message : null },
         });
       }
 
