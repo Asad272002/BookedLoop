@@ -36,20 +36,20 @@ export const metadata: Metadata = {
     "CRM setup",
   ],
   alternates: {
-    canonical: "/",
+    canonical: site.url,
   },
   openGraph: {
     type: "website",
     siteName: site.name,
     title: `${site.name} — Turn missed leads into booked clients`,
     description: site.description,
-    url: "/",
+    url: site.url,
     images: [
       {
-        url: "/bookedloop.png",
-        width: 1024,
-        height: 1024,
-        alt: `${site.name} logo`,
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: `${site.name} — Turn missed leads into booked clients`,
       },
     ],
   },
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${site.name} — Turn missed leads into booked clients`,
     description: site.description,
-    images: ["/bookedloop.png"],
+    images: ["/opengraph-image"],
   },
   icons: {
     icon: "/favicon.ico",
