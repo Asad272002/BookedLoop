@@ -31,14 +31,14 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_75%,transparent)] backdrop-blur">
       <div className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
-          <span className="relative grid h-16 w-[220px] place-items-center sm:w-[280px] lg:w-[320px]">
+          <span className="relative grid h-16 w-[220px] place-items-start sm:w-[280px] lg:w-[320px]">
             <Image
               src="/bookedloop.png"
               alt={`${site.name} logo`}
               fill
               priority
               sizes="(max-width: 640px) 220px, (max-width: 1024px) 280px, 320px"
-              className="object-contain object-center scale-[1.25] sm:object-left sm:scale-[1.45]"
+              className="object-contain object-left scale-[1.25] sm:scale-[1.45]"
             />
           </span>
           <span className="sr-only">{site.name}</span>

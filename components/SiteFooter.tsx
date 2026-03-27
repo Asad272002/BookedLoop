@@ -19,13 +19,13 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-3">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="relative h-16 w-[320px]">
+              <div className="relative h-16 w-[220px] sm:w-[320px]">
                 <Image
                   src="/bookedloop.png"
                   alt={`${site.name} logo`}
                   fill
-                  sizes="320px"
-                  className="object-contain object-left scale-[1.45]"
+                  sizes="(max-width: 640px) 220px, 320px"
+                  className="object-contain object-left scale-[1.25] sm:scale-[1.45]"
                 />
               </div>
               <span className="sr-only">{site.name}</span>
