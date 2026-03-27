@@ -1,5 +1,8 @@
 import dayjs from "dayjs";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@supabase/auth-helpers-nextjs";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -27,6 +30,83 @@ function startOfTodayIso() {
 export default async function AdminOverview() {
   const admin = supabaseServer();
   const todayStart = startOfTodayIso();
+
+  const jar = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return jar.getAll().map(({ name, value }) => ({ name, value }));
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
+      },
+    },
+  });
+  const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
+  if (!authUserId) redirect("/admin/login");
+  const { data: me } = await admin.from("users").select("id, role").eq("auth_user_id", authUserId).maybeSingle();
+  if (!me?.id) redirect("/admin/login");
+
+  if (me.role === "caller") {
+    const { data: queue } = await admin
+      .from("businesses")
+      .select("id")
+      .eq("assigned_to_user_id", me.id)
+      .or("status.eq.new,status.eq.follow_up,status.eq.assigned");
+
+    const { data: logs } = await admin
+      .from("outreach_logs")
+      .select("id, created_at, outcome, business_id")
+      .eq("channel", "call")
+      .eq("user_id", me.id)
+      .gte("created_at", todayStart)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    const logRows = (logs as unknown as Array<{ id: string; created_at: string; outcome: string; business_id: string }> | null) ?? [];
+    const doneIds = new Set(logRows.map((l) => l.business_id));
+    const queueCount = ((queue as unknown as Array<{ id: string }> | null) ?? []).length;
+    const remaining = Math.max(0, queueCount - doneIds.size);
+
+    const counts: Record<string, number> = {};
+    logRows.forEach((l) => {
+      counts[l.outcome] = (counts[l.outcome] || 0) + 1;
+    });
+
+    const kpis = [
+      { label: "Remaining (Today)", value: remaining },
+      { label: "Calls Done (Today)", value: logRows.length },
+      { label: "Interested (Today)", value: counts["interested"] || 0 },
+      { label: "Not Interested (Today)", value: counts["not_interested"] || 0 },
+      { label: "Booked Audits (Today)", value: counts["booked_audit"] || 0 },
+    ];
+
+    return (
+      <div className="grid gap-4">
+        <div className="text-lg font-semibold tracking-tight">Caller Dashboard</div>
+        <div className="grid gap-3 md:grid-cols-5">
+          {kpis.map((k) => (
+            <Card key={k.label}>
+              <CardHeader className="pt-4">
+                <div className="text-xs text-[color-mix(in_srgb,var(--foreground)_65%,transparent)]">{k.label}</div>
+              </CardHeader>
+              <CardContent className="pt-2 text-2xl font-semibold tracking-tight">{k.value}</CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-2">
+          <Link
+            href="/admin/calls"
+            className="rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] px-3 py-3 text-sm hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
+          >
+            Go to Calls
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const [{ count: totalLeads }, { count: newLeads }, { count: callsToday }, { count: followUpsDue }, { count: interested }, { count: auditsBooked }, { count: proposalsSent }, { count: won }, { count: lost }] =
     await Promise.all([

@@ -111,10 +111,7 @@ export default async function LeadsPage({
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const authUserId = isProd
-    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
   const { data: me } = authUserId ? await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle() : { data: null };
   const currentRole = (me?.role as string | null) ?? "caller";
   if (currentRole === "caller") {
@@ -136,10 +133,7 @@ export default async function LeadsPage({
         },
       },
     });
-    const isProd = process.env.NODE_ENV === "production";
-    const authUserId = isProd
-      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
     if (!authUserId) redirect("/admin/login");
     const admin = supabaseServer();
     const { data: me } = await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle();

@@ -43,10 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const sessionUser = isProd
-    ? (await supabase.auth.getSession()).data.session?.user ?? null
-    : (await supabase.auth.getUser()).data.user ?? null;
+  const sessionUser = (await supabase.auth.getUser()).data.user ?? null;
   const role = ((sessionUser?.app_metadata?.role as Role | undefined) ?? "caller") as Role;
 
   const me =

@@ -38,7 +38,7 @@ export function SiteHeader() {
               fill
               priority
               sizes="(max-width: 640px) 220px, (max-width: 1024px) 280px, 320px"
-              className="object-contain object-left scale-[1.45]"
+              className="object-contain object-center scale-[1.25] sm:object-left sm:scale-[1.45]"
             />
           </span>
           <span className="sr-only">{site.name}</span>

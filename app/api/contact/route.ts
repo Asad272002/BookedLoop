@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { supabaseServer } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+
 type ContactPayload = {
   name: string;
   businessName: string;
@@ -20,6 +24,13 @@ function isEmail(value: string) {
 function clean(value: unknown) {
   if (typeof value !== "string") return "";
   return value.trim();
+}
+
+function normalizeUrl(value: string | undefined) {
+  const v = (value || "").trim();
+  if (!v) return null;
+  if (v.startsWith("http://") || v.startsWith("https://")) return v;
+  return `https://${v}`;
 }
 
 export async function POST(req: Request) {
@@ -79,6 +90,87 @@ export async function POST(req: Request) {
     source: "bookedloop-site",
     receivedAt: new Date().toISOString(),
   };
+
+  try {
+    const admin = supabaseServer();
+    const websiteUrl = normalizeUrl(website) ?? (website ? website.trim() : null);
+
+    const { data: existingBizList } = await admin
+      .from("businesses")
+      .select("id, website, phone, email, niche, status")
+      .ilike("business_name", businessName)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const existingBiz = (existingBizList as unknown as Array<{
+      id: string;
+      website: string | null;
+      phone: string | null;
+      email: string | null;
+      niche: string | null;
+      status: string | null;
+    }> | null)?.[0] ?? null;
+
+    if (!existingBiz?.id) {
+      const { data: inserted, error: insertErr } = await admin
+        .from("businesses")
+        .insert({
+          business_name: businessName,
+          niche: serviceInterest || businessType || null,
+          website: websiteUrl,
+          phone: phone || null,
+          email,
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (insertErr || !inserted?.id) {
+        return NextResponse.json({ ok: false, error: "Could not save lead" }, { status: 500 });
+      }
+      const businessId = inserted.id;
+      const contactRole = [serviceInterest || null, businessType || null].filter(Boolean).join(" · ") || null;
+      await admin.from("contacts").insert({
+        business_id: businessId,
+        contact_name: name || null,
+        email,
+        phone: phone || null,
+        role: contactRole,
+      });
+    } else {
+      const businessId = existingBiz.id;
+      const nextWebsite = existingBiz.website || websiteUrl;
+      const nextPhone = existingBiz.phone || phone || null;
+      const nextEmail = existingBiz.email || email;
+      const nextNiche = existingBiz.niche || serviceInterest || businessType || null;
+      if (
+        nextWebsite !== existingBiz.website ||
+        nextPhone !== existingBiz.phone ||
+        nextEmail !== existingBiz.email ||
+        nextNiche !== existingBiz.niche
+      ) {
+        await admin
+          .from("businesses")
+          .update({
+            website: nextWebsite,
+            phone: nextPhone,
+            email: nextEmail,
+            niche: nextNiche,
+          })
+          .eq("id", businessId);
+      }
+      const contactRole = [serviceInterest || null, businessType || null].filter(Boolean).join(" · ") || null;
+      await admin.from("contacts").insert({
+        business_id: businessId,
+        contact_name: name || null,
+        email,
+        phone: phone || null,
+        role: contactRole,
+      });
+    }
+  } catch {
+    return NextResponse.json({ ok: false, error: "Could not save lead" }, { status: 500 });
+  }
 
   const webhookUrl = process.env.BOOKEDLOOP_CONTACT_WEBHOOK_URL;
   if (webhookUrl) {

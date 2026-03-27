@@ -185,10 +185,7 @@ export default async function AuditsPage({
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const role = isProd
-    ? ((await supabase.auth.getSession()).data.session?.user.app_metadata?.role as string | undefined) ?? "caller"
-    : ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
+  const role = ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
   if (role !== "admin" && role !== "manager") redirect("/admin");
 
   async function createAudit(formData: FormData) {

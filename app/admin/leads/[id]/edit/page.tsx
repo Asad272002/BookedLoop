@@ -18,6 +18,7 @@ const statusOptions = [
   "interested",
   "audit_booked",
   "proposal_sent",
+  "payment_pending",
   "won",
   "lost",
   "dnc",
@@ -38,8 +39,8 @@ function toDatetimeLocal(value: string | null) {
   return d.format("YYYY-MM-DDTHH:mm");
 }
 
-export default async function EditLeadPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default async function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const admin = supabaseServer();
 
   {
@@ -56,8 +57,7 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
         },
       },
     });
-    const isProd = process.env.NODE_ENV === "production";
-    const authUserId = isProd ? (await supabase.auth.getSession()).data.session?.user.id ?? null : (await supabase.auth.getUser()).data.user?.id ?? null;
+    const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
     if (!authUserId) redirect("/admin/login");
     const { data: me } = await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle();
     if (!me || (me.role !== "admin" && me.role !== "manager")) redirect("/admin/leads?error=forbidden");
@@ -132,10 +132,7 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
           },
         },
       });
-      const isProd = process.env.NODE_ENV === "production";
-      const authUserId = isProd
-        ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-        : (await supabase.auth.getUser()).data.user?.id ?? null;
+      const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
       const { data: me } = authUserId
         ? await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle()
         : { data: null };

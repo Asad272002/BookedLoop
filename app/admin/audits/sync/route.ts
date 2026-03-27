@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { supabaseServer } from "@/lib/supabase/server";
-import { readFile } from "fs/promises";
-import path from "path";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -31,9 +29,12 @@ async function getServiceAccount() {
       .replace(/\\n/g, "\n");
     return { client_email: svcEmail, private_key };
   }
+  if (process.env.NODE_ENV === "production") return null;
+  const pathMod = await import("path");
+  const { readFile } = await import("fs/promises");
   const localPath =
     process.env.BL_GOOGLE_SVC_JSON_PATH ||
-    path.join(process.cwd(), "serviceaccount", "service.json");
+    pathMod.join(/*turbopackIgnore: true*/ process.cwd(), "serviceaccount", "service.json");
   try {
     const raw = await readFile(localPath, "utf8");
     const json = JSON.parse(raw) as { client_email: string; private_key: string };
@@ -105,10 +106,7 @@ export async function POST(req: Request) {
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const authUserId = isProd
-    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
   if (!authUserId) return NextResponse.redirect(new URL("/admin/login", req.url));
   const admin = supabaseServer();
   const { data: me } = await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle();

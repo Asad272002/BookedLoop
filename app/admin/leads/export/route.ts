@@ -44,10 +44,7 @@ export async function GET(req: Request) {
     },
   });
 
-  const isProd = process.env.NODE_ENV === "production";
-  const authUserId = isProd
-    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
   if (!authUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const admin = supabaseServer();

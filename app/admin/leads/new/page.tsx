@@ -37,10 +37,7 @@ export default function NewLeadPage() {
         },
       },
     });
-    const isProd = process.env.NODE_ENV === "production";
-    const authUserId = isProd
-      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
     if (!authUserId) redirect("/admin/login");
 
     const parsed = leadSchema.safeParse({

@@ -62,8 +62,8 @@ type AuditRow = {
   audit_outcome?: string | null;
 };
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const admin = supabaseServer();
 
   const jar = await cookies();
@@ -79,10 +79,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const authUserId = isProd
-    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
   if (!authUserId) redirect("/admin/login");
   const { data: meProfile } = await admin.from("users").select("id, role").eq("auth_user_id", authUserId).maybeSingle();
   if (!meProfile?.id) redirect("/admin/login");
@@ -146,10 +143,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
         },
       },
     });
-    const isProd = process.env.NODE_ENV === "production";
-    const authUserId = isProd
-      ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-      : (await supabase.auth.getUser()).data.user?.id ?? null;
+    const authUserId = (await supabase.auth.getUser()).data.user?.id ?? null;
     if (!authUserId) redirect("/admin/login");
     const admin = supabaseServer();
     const { data: me } = await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle();

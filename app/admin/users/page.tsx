@@ -64,10 +64,7 @@ export default async function UsersPage() {
       },
     },
   });
-  const isProd = process.env.NODE_ENV === "production";
-  const role = isProd
-    ? ((await supabase.auth.getSession()).data.session?.user.app_metadata?.role as string | undefined) ?? "caller"
-    : ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
+  const role = ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
   if (role !== "admin") redirect("/admin");
 
   async function updateUser(formData: FormData) {
@@ -93,10 +90,7 @@ export default async function UsersPage() {
           },
         },
       });
-      const isProd = process.env.NODE_ENV === "production";
-      const sessionUser = isProd
-        ? (await supabase.auth.getSession()).data.session?.user ?? null
-        : (await supabase.auth.getUser()).data.user ?? null;
+      const sessionUser = (await supabase.auth.getUser()).data.user ?? null;
       if (!sessionUser?.id) redirect("/admin/login");
       const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
       if (role !== "admin") redirect("/admin/users?error=forbidden");
@@ -174,10 +168,7 @@ export default async function UsersPage() {
           },
         },
       });
-      const isProd = process.env.NODE_ENV === "production";
-      const sessionUser = isProd
-        ? (await supabase.auth.getSession()).data.session?.user ?? null
-        : (await supabase.auth.getUser()).data.user ?? null;
+      const sessionUser = (await supabase.auth.getUser()).data.user ?? null;
       if (!sessionUser?.id) redirect("/admin/login");
       const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
       if (role !== "admin") redirect("/admin/users?error=forbidden");
@@ -248,10 +239,7 @@ export default async function UsersPage() {
           },
         },
       });
-      const isProd = process.env.NODE_ENV === "production";
-      const sessionUser = isProd
-        ? (await supabase.auth.getSession()).data.session?.user ?? null
-        : (await supabase.auth.getUser()).data.user ?? null;
+      const sessionUser = (await supabase.auth.getUser()).data.user ?? null;
       if (!sessionUser?.id) redirect("/admin/login");
       const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
       if (role !== "admin") redirect("/admin/users?error=forbidden");
