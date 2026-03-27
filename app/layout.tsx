@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-import { MobileStickyCta } from "@/components/MobileStickyCta";
+import { AdminAwareShell } from "@/components/AdminAwareShell";
 import { MotionProvider } from "@/components/motion";
-import { SiteFooter } from "@/components/SiteFooter";
-import { SiteHeader } from "@/components/SiteHeader";
+import { ToastProvider } from "@/components/ui/Toast";
 import { site } from "@/lib/site";
 
 const geistSans = Geist({
@@ -101,12 +100,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <MotionProvider>
-          <div className="min-h-full flex flex-col">
-            <SiteHeader />
-            <main className="flex-1 pb-24 md:pb-0">{children}</main>
-            <SiteFooter />
-            <MobileStickyCta />
-          </div>
+          <ToastProvider>
+            <AdminAwareShell>{children}</AdminAwareShell>
+          </ToastProvider>
         </MotionProvider>
       </body>
     </html>

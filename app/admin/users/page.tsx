@@ -23,6 +23,15 @@ const createUserSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
+const updateUserSchema = z.object({
+  id: z.string().min(1),
+  fullName: z.string().min(2).max(80),
+  email: z.string().email(),
+  role: z.enum(["admin", "manager", "caller"]),
+  isActive: z.enum(["true", "false"]),
+  password: z.string().optional().or(z.literal("")),
+});
+
 type InternalUser = {
   id: string;
   auth_user_id: string | null;
@@ -34,13 +43,8 @@ type InternalUser = {
   created_at: string;
 };
 
-export default async function UsersPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ ok?: string; error?: string }>;
-}) {
+export default async function UsersPage() {
   const jar = await cookies();
-  const sp = (await searchParams) ?? {};
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
@@ -66,8 +70,192 @@ export default async function UsersPage({
     : ((await supabase.auth.getUser()).data.user?.app_metadata?.role as string | undefined) ?? "caller";
   if (role !== "admin") redirect("/admin");
 
+  async function updateUser(formData: FormData) {
+    "use server";
+    {
+      const jar = await cookies();
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+      const supabase = createServerClient(supabaseUrl, supabaseKey, {
+        cookies: {
+          getAll() {
+            return jar.getAll().map(({ name, value }) => ({ name, value }));
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              jar.set(name, value, {
+                ...options,
+                path: options?.path ?? "/",
+                sameSite: options?.sameSite ?? "lax",
+                secure: options?.secure ?? process.env.NODE_ENV === "production",
+              });
+            });
+          },
+        },
+      });
+      const isProd = process.env.NODE_ENV === "production";
+      const sessionUser = isProd
+        ? (await supabase.auth.getSession()).data.session?.user ?? null
+        : (await supabase.auth.getUser()).data.user ?? null;
+      if (!sessionUser?.id) redirect("/admin/login");
+      const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
+      if (role !== "admin") redirect("/admin/users?error=forbidden");
+    }
+    const parsed = updateUserSchema.safeParse({
+      id: String(formData.get("id") || "").trim(),
+      fullName: String(formData.get("fullName") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      role: String(formData.get("role") || "").trim(),
+      isActive: String(formData.get("isActive") || "").trim(),
+      password: String(formData.get("password") || ""),
+    });
+
+    if (!parsed.success) redirect("/admin/users?error=invalid_fields");
+
+    const admin = supabaseServer();
+    const { id, fullName, email, role, isActive, password } = parsed.data;
+
+    const { data: existing } = await admin
+      .from("users")
+      .select("id, auth_user_id, username, is_active")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!existing?.id) redirect("/admin/users?error=invalid");
+
+    const nextActive = isActive === "true";
+    const { error: updateErr } = await admin
+      .from("users")
+      .update({
+        full_name: fullName,
+        email,
+        role,
+        is_active: nextActive,
+      })
+      .eq("id", id);
+    if (updateErr) redirect("/admin/users?error=db_write_failed");
+
+    if (existing.auth_user_id) {
+      const { error: authErr } = await admin.auth.admin.updateUserById(existing.auth_user_id, {
+        user_metadata: { username: existing.username, full_name: fullName },
+        app_metadata: { role },
+        ...(password ? { password } : {}),
+      });
+      if (authErr) redirect("/admin/users?error=auth_update_failed");
+    }
+
+    if (existing.is_active !== nextActive) {
+      redirect(`/admin/users?toast=${nextActive ? "user_reactivated" : "user_deactivated"}`);
+    }
+    redirect("/admin/users?toast=user_updated");
+  }
+
+  async function deleteUser(formData: FormData) {
+    "use server";
+    let currentAuthUserId: string | null = null;
+    {
+      const jar = await cookies();
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+      const supabase = createServerClient(supabaseUrl, supabaseKey, {
+        cookies: {
+          getAll() {
+            return jar.getAll().map(({ name, value }) => ({ name, value }));
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              jar.set(name, value, {
+                ...options,
+                path: options?.path ?? "/",
+                sameSite: options?.sameSite ?? "lax",
+                secure: options?.secure ?? process.env.NODE_ENV === "production",
+              });
+            });
+          },
+        },
+      });
+      const isProd = process.env.NODE_ENV === "production";
+      const sessionUser = isProd
+        ? (await supabase.auth.getSession()).data.session?.user ?? null
+        : (await supabase.auth.getUser()).data.user ?? null;
+      if (!sessionUser?.id) redirect("/admin/login");
+      const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
+      if (role !== "admin") redirect("/admin/users?error=forbidden");
+      currentAuthUserId = sessionUser.id;
+    }
+    const id = String(formData.get("id") || "").trim();
+    if (!id) redirect("/admin/users?error=invalid");
+
+    const admin = supabaseServer();
+    const { data: existing, error: getErr } = await admin
+      .from("users")
+      .select("id, auth_user_id, username, full_name, email, role, is_active")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (getErr || !existing?.id) redirect("/admin/users?error=invalid");
+
+    if (existing.auth_user_id && existing.auth_user_id === currentAuthUserId) {
+      redirect("/admin/users?error=cannot_delete_self");
+    }
+
+    const { error: deleteErr } = await admin.from("users").delete().eq("id", id);
+    if (deleteErr) {
+      const msg = deleteErr.message.toLowerCase();
+      if (msg.includes("foreign key")) redirect("/admin/users?error=user_in_use");
+      redirect("/admin/users?error=db_write_failed");
+    }
+
+    if (existing.auth_user_id) {
+      const { error: authDeleteErr } = await admin.auth.admin.deleteUser(existing.auth_user_id);
+      if (authDeleteErr) {
+        await admin.from("users").insert({
+          id: existing.id,
+          auth_user_id: existing.auth_user_id,
+          username: existing.username,
+          full_name: existing.full_name,
+          email: existing.email,
+          role: existing.role,
+          is_active: existing.is_active,
+        });
+        redirect("/admin/users?error=auth_delete_failed");
+      }
+    }
+
+    redirect("/admin/users?toast=user_deleted");
+  }
+
   async function createUser(formData: FormData) {
     "use server";
+    {
+      const jar = await cookies();
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+      const supabase = createServerClient(supabaseUrl, supabaseKey, {
+        cookies: {
+          getAll() {
+            return jar.getAll().map(({ name, value }) => ({ name, value }));
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              jar.set(name, value, {
+                ...options,
+                path: options?.path ?? "/",
+                sameSite: options?.sameSite ?? "lax",
+                secure: options?.secure ?? process.env.NODE_ENV === "production",
+              });
+            });
+          },
+        },
+      });
+      const isProd = process.env.NODE_ENV === "production";
+      const sessionUser = isProd
+        ? (await supabase.auth.getSession()).data.session?.user ?? null
+        : (await supabase.auth.getUser()).data.user ?? null;
+      if (!sessionUser?.id) redirect("/admin/login");
+      const role = (sessionUser.app_metadata?.role as string | undefined) ?? "caller";
+      if (role !== "admin") redirect("/admin/users?error=forbidden");
+    }
     const parsed = createUserSchema.safeParse({
       username: String(formData.get("username") || "").trim(),
       fullName: String(formData.get("fullName") || "").trim(),
@@ -170,7 +358,7 @@ export default async function UsersPage({
           .maybeSingle();
 
         if (!insertErr && inserted?.id) {
-          redirect("/admin/users?ok=1");
+          redirect("/admin/users?toast=user_created");
         }
 
         const { data: updated, error: updateErr } = await admin
@@ -181,7 +369,7 @@ export default async function UsersPage({
           .maybeSingle();
 
         if (!updateErr && updated?.id) {
-          redirect("/admin/users?ok=1");
+          redirect("/admin/users?toast=user_created");
         }
       }
 
@@ -199,7 +387,7 @@ export default async function UsersPage({
     }
     if (!createdId) redirect("/admin/users?error=db_verify_failed");
 
-    redirect("/admin/users?ok=1");
+    redirect("/admin/users?toast=user_created");
   }
 
   const admin = supabaseServer();
@@ -220,35 +408,11 @@ export default async function UsersPage({
             <div className="text-sm font-semibold tracking-tight">Team</div>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {sp.ok ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                User created.
-              </div>
-            ) : null}
-            {sp.error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {sp.error === "invalid_fields"
-                  ? "Please fill all required fields. Username must be 3–32 characters (letters/numbers/._- only). Password must be at least 8 characters."
-                  : sp.error === "username_taken"
-                    ? "That username is already in use."
-                    : sp.error === "email_taken"
-                      ? "That email is already in use."
-                      : sp.error === "weak_password"
-                        ? "Password is too weak. Use 8+ characters and avoid common passwords."
-                        : sp.error === "auth_db_error"
-                          ? "Supabase Auth database error while creating the user. This usually means your auth trigger failed—run the latest trigger SQL and try again."
-                        : sp.error === "db_write_failed"
-                          ? "User was created in Supabase Auth, but saving to the internal users table failed. Check your public.users schema and permissions, then try again."
-                        : sp.error === "db_verify_failed"
-                          ? "User creation returned success, but the row was not found in the internal users table. This usually means you’re connected to a different Supabase project than the one you’re checking in the dashboard."
-                          : "Could not create user."}
-              </div>
-            ) : null}
-            <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
+            <div className="overflow-x-auto overflow-y-visible rounded-2xl border border-[var(--border)]">
               <table className="min-w-full text-sm">
                 <thead className="bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
                   <tr className="text-left">
-                    {["Name", "Username", "Role", "Active", "Created"].map((h) => (
+                    {["Name", "Username", "Role", "Access", "Created", ""].map((h) => (
                       <th key={h} className="px-3 py-2 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -256,11 +420,75 @@ export default async function UsersPage({
                 <tbody>
                   {(users as InternalUser[] | null)?.map((u) => (
                     <tr key={u.id} className="border-t border-[var(--border)]">
-                      <td className="px-3 py-2">{u.full_name}</td>
-                      <td className="px-3 py-2">{u.username}</td>
-                      <td className="px-3 py-2">{u.role}</td>
-                      <td className="px-3 py-2">{u.is_active ? "Yes" : "No"}</td>
-                      <td className="px-3 py-2">{u.created_at.slice(0, 10)}</td>
+                      <td className="px-3 py-2">{u.full_name ?? u.username ?? "—"}</td>
+                      <td className="px-3 py-2">{u.username ?? "—"}</td>
+                      <td className="px-3 py-2">{u.role ?? "caller"}</td>
+                      <td className="px-3 py-2">{u.is_active ? "Enabled" : "Disabled"}</td>
+                      <td className="px-3 py-2">{(u.created_at ?? "").slice(0, 10) || "—"}</td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <details className="inline-block w-full text-left">
+                          <summary className="cursor-pointer rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] px-3 py-1.5 text-sm hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
+                            Manage
+                          </summary>
+                          <div className="mt-2 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_94%,transparent)] p-3">
+                            <form action={updateUser} className="grid gap-2">
+                              <input type="hidden" name="id" value={u.id} />
+                              <div className="grid gap-1">
+                                <Label htmlFor={`fullName-${u.id}`}>Full name</Label>
+                                <Input id={`fullName-${u.id}`} name="fullName" defaultValue={u.full_name ?? ""} required />
+                              </div>
+                              <div className="grid gap-1">
+                                <Label htmlFor={`email-${u.id}`}>Email</Label>
+                                <Input id={`email-${u.id}`} name="email" type="email" defaultValue={u.email ?? ""} required />
+                              </div>
+                              <div className="grid gap-1 sm:grid-cols-2">
+                                <div className="grid gap-1">
+                                  <Label htmlFor={`role-${u.id}`}>Role</Label>
+                                  <Select id={`role-${u.id}`} name="role" defaultValue={u.role ?? "caller"}>
+                                    <option value="admin">admin</option>
+                                    <option value="manager">manager</option>
+                                    <option value="caller">caller</option>
+                                  </Select>
+                                </div>
+                                <div className="grid gap-1">
+                                  <Label htmlFor={`isActive-${u.id}`}>Access</Label>
+                                  <Select id={`isActive-${u.id}`} name="isActive" defaultValue={u.is_active ? "true" : "false"}>
+                                    <option value="true">enabled</option>
+                                    <option value="false">disabled</option>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid gap-1">
+                                <Label htmlFor={`password-${u.id}`}>Reset password (optional)</Label>
+                                <Input id={`password-${u.id}`} name="password" type="password" minLength={8} placeholder="New password" />
+                              </div>
+                              <div className="flex justify-end gap-2 pt-1">
+                                <Button type="submit" variant="secondary" size="sm">
+                                  Save
+                                </Button>
+                              </div>
+                            </form>
+                            <details className="mt-2 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_85%,transparent)] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-red-600">Delete permanently</summary>
+                              <div className="mt-2 grid gap-2">
+                                <div className="text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
+                                  This removes the user record. If the user has linked activity, deletion will fail—use Deactivate instead.
+                                </div>
+                                <form action={deleteUser}>
+                                  <input type="hidden" name="id" value={u.id} />
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    className="w-full bg-red-600 text-white hover:bg-red-700"
+                                  >
+                                    Confirm delete
+                                  </Button>
+                                </form>
+                              </div>
+                            </details>
+                          </div>
+                        </details>
+                      </td>
                     </tr>
                   )) ?? null}
                 </tbody>

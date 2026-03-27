@@ -61,7 +61,110 @@ function formatWhen(value: string | null) {
   return d.format("YYYY-MM-DD h:mm A");
 }
 
-export default async function AuditsPage() {
+function parseContactFromNotes(notes: string | null) {
+  const raw = notes || "";
+  const txt = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?[^>]+>/g, "");
+  const lines = txt.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const emailMatch = txt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const phoneMatch = txt.match(/(\+?\d[\d\s().-]{6,}\d)/);
+  const urlMatch = txt.match(/https?:\/\/[^\s)]+/i);
+
+  function normLabel(v: string) {
+    return v
+      .toLowerCase()
+      .replace(/[*:]/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function normalizeUrl(v: string | null) {
+    if (!v) return null;
+    const s = v.trim();
+    if (!s) return null;
+    if (s.startsWith("http://") || s.startsWith("https://")) return s;
+    if (s.includes(" ")) return null;
+    return `https://${s}`;
+  }
+
+  function findField(label: string) {
+    const target = normLabel(label);
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      const low = normLabel(l);
+      if (low === target) {
+        const next = lines[i + 1] || "";
+        return next ? next.trim() : null;
+      }
+      if (low.startsWith(target + " ")) {
+        const after = l.replace(new RegExp(`^\\s*${label}\\s*[:*]?\\s*`, "i"), "").trim();
+        return after || null;
+      }
+    }
+    return null;
+  }
+
+  const first = findField("first name");
+  const last = findField("surname") || findField("last name");
+  const email = findField("email address") || emailMatch?.[0] || null;
+  const phone = findField("phone number") || phoneMatch?.[0] || null;
+  const listing =
+    normalizeUrl(findField("business listing link")) ||
+    normalizeUrl(findField("bussiness listing link")) ||
+    normalizeUrl(findField("google business profile link")) ||
+    normalizeUrl(findField("gbp link")) ||
+    normalizeUrl(urlMatch?.[0] || null);
+
+  const fullName = [first, last].filter(Boolean).join(" ").trim() || null;
+  let name: string | null = null;
+
+  for (const l of lines) {
+    if (!l) continue;
+    const low = l.toLowerCase();
+    if (low.startsWith("booked by") || low === "booked by:") continue;
+    if (low === "first name" || low === "surname" || low === "last name" || low === "email address" || low === "phone number" || low === "business listing link") continue;
+    if (low.includes("appointment")) continue;
+    if (low.includes("audit")) continue;
+    if (email && l.includes(email)) continue;
+    if (phone && l.includes(phone)) continue;
+    if (l.length >= 2 && l.length <= 80) {
+      name = l;
+      break;
+    }
+  }
+
+  if (!name && lines.length) {
+    const first = lines[0];
+    const paren = first.match(/\(([^)]+)\)/);
+    if (paren && paren[1] && paren[1].length <= 80) {
+      name = paren[1];
+    }
+  }
+
+  return {
+    name: fullName || name,
+    email,
+    phone,
+    link: listing,
+  };
+}
+
+function stripHtml(input: string) {
+  return input.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?[^>]+>/g, "");
+}
+
+function shortUrl(url: string) {
+  const s = url.replace(/^https?:\/\//i, "").replace(/\/+$/g, "");
+  if (s.length <= 42) return s;
+  return `${s.slice(0, 26)}…${s.slice(-10)}`;
+}
+export default async function AuditsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string; time?: "all" | "upcoming" | "past" | "overdue"; audit?: string }>;
+}) {
+  const sp = (await searchParams) ?? {};
   const jar = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -233,10 +336,62 @@ export default async function AuditsPage() {
     } satisfies AuditRow;
   }) ?? null;
 
+  const nowIso = new Date().toISOString();
+  const filtered =
+    rows?.filter((a) => {
+      const matchesStatus = sp.status ? (a.status || "").toLowerCase() === sp.status!.toLowerCase() : true;
+      const when = a.appointment_datetime ? new Date(a.appointment_datetime).toISOString() : null;
+      const isPast = when ? when < nowIso : false;
+      const isOverdue = (a.status === "scheduled") && isPast;
+      const matchesTime =
+        sp.time === "upcoming" ? !isPast :
+        sp.time === "past" ? isPast :
+        sp.time === "overdue" ? isOverdue :
+        true;
+      return matchesStatus && matchesTime;
+    }) ?? [];
+
+  const baseParams = new URLSearchParams();
+  if (sp.status) baseParams.set("status", sp.status);
+  if (sp.time) baseParams.set("time", sp.time);
+
+  const selectedAudit = sp.audit ? rows?.find((r) => r.id === sp.audit) ?? null : null;
+
+  const hasEnvCalendar = Boolean((process.env.GOOGLE_CALENDAR_ID || "").trim());
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-lg font-semibold tracking-tight">Audits</div>
+        <form method="get" className="flex items-center gap-2">
+          <Select name="status" defaultValue={sp.status || ""}>
+            <option value="">All statuses</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </Select>
+          <Select name="time" defaultValue={sp.time || "all"}>
+            <option value="all">All times</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="past">Past</option>
+            <option value="overdue">Overdue</option>
+          </Select>
+          <Button type="submit" variant="ghost" size="sm">Filter</Button>
+        </form>
+        <form method="post" action="/admin/audits/sync" className="flex items-center gap-2">
+          {!hasEnvCalendar ? (
+            <>
+              <Input
+                name="calendarId"
+                placeholder="Calendar ID (email or ID)"
+                className="w-64"
+                required
+              />
+            </>
+          ) : null}
+          <Button type="submit" variant="secondary" size="sm">
+            Sync Calendar
+          </Button>
+        </form>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -245,96 +400,75 @@ export default async function AuditsPage() {
             <div className="text-sm font-semibold tracking-tight">Scheduled & completed audits</div>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {!rows?.length ? (
+            {!filtered.length ? (
               <div className="rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] px-3 py-3 text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
                 No audits logged yet.
               </div>
             ) : null}
 
-            {rows?.map((a) => (
+            {filtered.map((a) => {
+              const isPast = a.appointment_datetime ? new Date(a.appointment_datetime) < new Date() : false;
+              const isOverdue = a.status === "scheduled" && isPast;
+              const parsed = parseContactFromNotes(a.notes || "");
+              const contactName = stripHtml(a.contact?.contact_name || parsed.name || "—");
+              const contactEmail = stripHtml(a.contact?.email || parsed.email || "—");
+              const contactPhone = stripHtml(a.contact?.phone || parsed.phone || "—");
+              const businessLink = parsed.link || null;
+              const moreParams = new URLSearchParams(baseParams);
+              moreParams.set("audit", a.id);
+              const moreHref = `/admin/audits?${moreParams.toString()}`;
+              return (
               <div
                 key={a.id}
                 className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold tracking-tight">
-                      {a.business?.business_name || "Unknown business"}
-                    </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold tracking-tight">{a.business?.business_name || "Unknown business"}</div>
                     <div className="mt-1 text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
-                      When: {formatWhen(a.appointment_datetime)} ({a.timezone || "—"}) · Status: {a.status || "—"}
+                      {formatWhen(a.appointment_datetime)} {a.timezone ? `(${a.timezone})` : ""} · {a.status || "—"}
+                      {isOverdue ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] text-red-700">overdue</span> : null}
                     </div>
-                    {a.calendar_event_url ? (
-                      <div className="mt-1 text-xs">
-                        <a
-                          className="underline underline-offset-4"
-                          href={a.calendar_event_url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open Google Calendar event
-                        </a>
+                    <div className="mt-2 grid gap-1 text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
+                      <div><span className="font-medium">Booker:</span> {contactName}</div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div>
+                          <span className="font-medium">Email:</span>{" "}
+                          {contactEmail && contactEmail !== "—" ? (
+                            <a href={`mailto:${contactEmail}`} className="underline underline-offset-4">{contactEmail}</a>
+                          ) : "—"}
+                        </div>
+                        <div>
+                          <span className="font-medium">Phone:</span>{" "}
+                          {contactPhone && contactPhone !== "—" ? (
+                            <a href={`tel:${contactPhone.replace(/\s+/g, "")}`} className="underline underline-offset-4">{contactPhone}</a>
+                          ) : "—"}
+                        </div>
+                        {businessLink ? (
+                          <div>
+                            <span className="font-medium">Business Listing Link:</span>{" "}
+                            <a href={businessLink} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                              {shortUrl(businessLink)}
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                    {a.contact?.contact_name || a.contact?.email || a.contact?.phone ? (
-                      <div className="mt-2 text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
-                        Contact: {a.contact?.contact_name || "—"}
-                        {a.contact?.email ? ` · ${a.contact.email}` : ""}
-                        {a.contact?.phone ? ` · ${a.contact.phone}` : ""}
-                      </div>
-                    ) : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button href={moreHref} variant="secondary" size="sm">
+                        More info
+                      </Button>
+                      {a.calendar_event_url ? (
+                        <Button href={a.calendar_event_url} variant="ghost" size="sm">
+                          Open event
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-
-                <form action={updateAudit} className="mt-4 grid gap-3">
-                  <input type="hidden" name="id" value={a.id} />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor={`status-${a.id}`}>Status</Label>
-                      <Select id={`status-${a.id}`} name="status" defaultValue={a.status ?? "scheduled"}>
-                        {statusOptions.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`outcome-${a.id}`}>How it went</Label>
-                      <Input
-                        id={`outcome-${a.id}`}
-                        name="outcome"
-                        defaultValue={a.audit_outcome ?? ""}
-                        placeholder="Example: qualified, asked for proposal"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor={`calendarUrl-${a.id}`}>Google Calendar link</Label>
-                    <Input
-                      id={`calendarUrl-${a.id}`}
-                      name="calendarUrl"
-                      defaultValue={a.calendar_event_url ?? ""}
-                      placeholder="https://calendar.google.com/..."
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor={`notes-${a.id}`}>Notes</Label>
-                    <Textarea
-                      id={`notes-${a.id}`}
-                      name="notes"
-                      defaultValue={a.notes ?? ""}
-                      placeholder="What happened on the audit call?"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button type="submit" size="sm">
-                      Save
-                    </Button>
-                  </div>
-                </form>
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -385,6 +519,103 @@ export default async function AuditsPage() {
           </CardContent>
         </Card>
       </div>
+      {selectedAudit ? (() => {
+        const a = selectedAudit;
+        const parsed = parseContactFromNotes(a.notes || "");
+        const contactName = stripHtml(a.contact?.contact_name || parsed.name || "—");
+        const contactEmail = stripHtml(a.contact?.email || parsed.email || "—");
+        const contactPhone = stripHtml(a.contact?.phone || parsed.phone || "—");
+        const businessLink = parsed.link || null;
+        const closeParams = new URLSearchParams(baseParams);
+        const closeHref = closeParams.toString() ? `/admin/audits?${closeParams.toString()}` : "/admin/audits";
+        const isPast = a.appointment_datetime ? new Date(a.appointment_datetime) < new Date() : false;
+        const isOverdue = a.status === "scheduled" && isPast;
+        return (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-3xl rounded-2xl border border-[var(--border)] bg-[var(--background)] shadow-xl">
+              <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] p-4">
+                <div className="min-w-0">
+                  <div className="text-base font-semibold tracking-tight">{a.business?.business_name || "Audit"}</div>
+                  <div className="mt-1 text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
+                    {formatWhen(a.appointment_datetime)} {a.timezone ? `(${a.timezone})` : ""} · {a.status || "—"}
+                    {isOverdue ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] text-red-700">overdue</span> : null}
+                  </div>
+                </div>
+                <Button href={closeHref} variant="ghost" size="sm">
+                  Close
+                </Button>
+              </div>
+
+              <div className="grid gap-4 p-4">
+                <div className="grid gap-2 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4">
+                  <div className="text-sm font-semibold tracking-tight">Booking</div>
+                  <div className="grid gap-1 text-sm">
+                    <div><span className="font-medium">Booker:</span> {contactName}</div>
+                    <div>
+                      <span className="font-medium">Email:</span>{" "}
+                      {contactEmail && contactEmail !== "—" ? (
+                        <a href={`mailto:${contactEmail}`} className="underline underline-offset-4">{contactEmail}</a>
+                      ) : "—"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span>{" "}
+                      {contactPhone && contactPhone !== "—" ? (
+                        <a href={`tel:${contactPhone.replace(/\s+/g, "")}`} className="underline underline-offset-4">{contactPhone}</a>
+                      ) : "—"}
+                    </div>
+                    {businessLink ? (
+                      <div>
+                        <span className="font-medium">Business Listing Link:</span>{" "}
+                        <a href={businessLink} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                          {shortUrl(businessLink)}
+                        </a>
+                      </div>
+                    ) : null}
+                    {a.calendar_event_url ? (
+                      <div>
+                        <span className="font-medium">Calendar:</span>{" "}
+                        <a href={a.calendar_event_url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                          Open Google Calendar event
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <form action={updateAudit} className="grid gap-3 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold tracking-tight">Outcome & status</div>
+                    <Button type="submit" size="sm">Save</Button>
+                  </div>
+                  <input type="hidden" name="id" value={a.id} />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="status">Status</Label>
+                      <Select id="status" name="status" defaultValue={a.status ?? "scheduled"}>
+                        {statusOptions.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="outcome">How it went</Label>
+                      <Input id="outcome" name="outcome" defaultValue={a.audit_outcome ?? ""} placeholder="Example: qualified, asked for proposal" />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="calendarUrl">Google Calendar link</Label>
+                    <Input id="calendarUrl" name="calendarUrl" defaultValue={a.calendar_event_url ?? ""} placeholder="https://calendar.google.com/..." />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea id="notes" name="notes" defaultValue={stripHtml(a.notes ?? "")} placeholder="What happened on the audit call?" />
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }

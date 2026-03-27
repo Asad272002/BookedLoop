@@ -117,6 +117,9 @@ export default async function LeadsPage({
     : (await supabase.auth.getUser()).data.user?.id ?? null;
   const { data: me } = authUserId ? await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle() : { data: null };
   const currentRole = (me?.role as string | null) ?? "caller";
+  if (currentRole === "caller") {
+    redirect("/admin/calls");
+  }
 
   async function importCsv(formData: FormData) {
     "use server";
@@ -172,7 +175,7 @@ export default async function LeadsPage({
       if (error) redirect("/admin/leads?error=import_failed");
     }
 
-    redirect(`/admin/leads?ok=imported`);
+    redirect(`/admin/leads?toast=import_ok`);
   }
 
   const q = (sp.q ?? "").trim();
@@ -216,17 +219,6 @@ export default async function LeadsPage({
           <div className="text-sm font-semibold tracking-tight">Filters</div>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {sp.ok ? (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              Import completed.
-            </div>
-          ) : null}
-          {sp.error ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              Could not import leads.
-            </div>
-          ) : null}
-
           <form className="grid gap-3 md:grid-cols-6" method="get">
             <div className="grid gap-2 md:col-span-2">
               <Label htmlFor="q">Search</Label>

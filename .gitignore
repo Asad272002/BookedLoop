@@ -37,6 +37,9 @@ yarn-error.log*
 /scripts/supabase/
 /supabase/
 
+# local google service account creds
+/serviceaccount/
+
 # vercel
 .vercel
 

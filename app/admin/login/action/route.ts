@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   const password = String(formData.get("password") || "");
 
   if (!username || !password) {
-    return NextResponse.redirect(new URL("/admin/login?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/admin/login?error=invalid_login", req.url));
   }
 
   const admin = supabaseServer();
@@ -29,16 +29,16 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (!profile || profile.is_active === false) {
-    return NextResponse.redirect(new URL("/admin/login?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/admin/login?error=invalid_login", req.url));
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.redirect(new URL("/admin/login?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/admin/login?error=invalid_login", req.url));
   }
 
-  const res = NextResponse.redirect(new URL("/admin", req.url));
+  const res = NextResponse.redirect(new URL("/admin?toast=login", req.url));
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -80,14 +80,13 @@ export async function POST(req: Request) {
   }
 
   if (error || !data.session) {
-    return NextResponse.redirect(new URL("/admin/login?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/admin/login?error=invalid_login", req.url));
   }
 
   const role = (data.user?.app_metadata?.role as string | undefined) ?? profile.role;
   if (role === "caller") {
-    return NextResponse.redirect(new URL("/admin/calls", req.url), { headers: res.headers });
+    return NextResponse.redirect(new URL("/admin/calls?toast=login", req.url), { headers: res.headers });
   }
 
   return res;
 }
-

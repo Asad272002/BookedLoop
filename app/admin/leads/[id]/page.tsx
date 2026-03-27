@@ -32,6 +32,7 @@ type Business = {
   next_follow_up_at: string | null;
   last_contacted_at: string | null;
   created_at: string;
+  assigned_to_user_id?: string | null;
 };
 
 type ContactRow = {
@@ -65,14 +66,43 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
   const id = params.id;
   const admin = supabaseServer();
 
+  const jar = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return jar.getAll().map(({ name, value }) => ({ name, value }));
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
+      },
+    },
+  });
+  const isProd = process.env.NODE_ENV === "production";
+  const authUserId = isProd
+    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    : (await supabase.auth.getUser()).data.user?.id ?? null;
+  if (!authUserId) redirect("/admin/login");
+  const { data: meProfile } = await admin.from("users").select("id, role").eq("auth_user_id", authUserId).maybeSingle();
+  if (!meProfile?.id) redirect("/admin/login");
+
   const { data: business } = await admin
     .from("businesses")
-    .select("id, business_name, niche, city, state, phone, email, website, status, lead_score, next_follow_up_at, last_contacted_at, created_at")
+    .select(
+      "id, business_name, niche, city, state, phone, email, website, status, lead_score, next_follow_up_at, last_contacted_at, created_at, assigned_to_user_id"
+    )
     .eq("id", id)
     .maybeSingle();
 
   if (!business) {
     redirect("/admin/leads");
+  }
+
+  if (meProfile.role === "caller") {
+    if (business.assigned_to_user_id !== meProfile.id) {
+      redirect("/admin/calls?error=forbidden");
+    }
   }
 
   const { data: contacts } = await admin
@@ -98,25 +128,6 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
     .order("appointment_datetime", { ascending: false })
     .limit(10);
   const auditRows = (audits as unknown as AuditRow[] | null) ?? [];
-
-  const jar = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return jar.getAll().map(({ name, value }) => ({ name, value }));
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
-      },
-    },
-  });
-  const isProd = process.env.NODE_ENV === "production";
-  const authUserId = isProd
-    ? (await supabase.auth.getSession()).data.session?.user.id ?? null
-    : (await supabase.auth.getUser()).data.user?.id ?? null;
-  const { data: me } = authUserId ? await admin.from("users").select("id").eq("auth_user_id", authUserId).maybeSingle() : { data: null };
 
   async function addNote(formData: FormData) {
     "use server";
@@ -274,7 +285,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
               <Label htmlFor="note">Add a note</Label>
               <Textarea id="note" name="note" placeholder="Internal note" />
               <div>
-                <Button variant="secondary" type="submit" disabled={!me?.id}>
+                <Button variant="secondary" type="submit" disabled={!meProfile?.id}>
                   Add Note
                 </Button>
               </div>

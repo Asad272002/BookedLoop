@@ -91,7 +91,7 @@ export default function NewLeadPage() {
       }
     }
 
-    redirect(`/admin/leads/${biz.id}`);
+    redirect(`/admin/leads/${biz.id}?toast=lead_created`);
   }
 
   return (

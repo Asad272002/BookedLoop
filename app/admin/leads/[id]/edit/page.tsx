@@ -42,6 +42,27 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
   const id = params.id;
   const admin = supabaseServer();
 
+  {
+    const jar = await cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll() {
+          return jar.getAll().map(({ name, value }) => ({ name, value }));
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => jar.set(name, value, { ...options, path: options?.path ?? "/" }));
+        },
+      },
+    });
+    const isProd = process.env.NODE_ENV === "production";
+    const authUserId = isProd ? (await supabase.auth.getSession()).data.session?.user.id ?? null : (await supabase.auth.getUser()).data.user?.id ?? null;
+    if (!authUserId) redirect("/admin/login");
+    const { data: me } = await admin.from("users").select("role").eq("auth_user_id", authUserId).maybeSingle();
+    if (!me || (me.role !== "admin" && me.role !== "manager")) redirect("/admin/leads?error=forbidden");
+  }
+
   const { data: lead } = await admin
     .from("businesses")
     .select(
@@ -121,7 +142,7 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
       if (me?.id) await admin.from("notes").insert({ business_id: id, user_id: me.id, note_text: note });
     }
 
-    redirect(`/admin/leads/${id}`);
+    redirect(`/admin/leads/${id}?toast=lead_updated`);
   }
 
   return (

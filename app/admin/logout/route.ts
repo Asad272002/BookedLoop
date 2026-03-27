@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 
-export async function GET(req: Request) {
+export async function GET() {
   return new NextResponse(null, { status: 204, headers: { "cache-control": "no-store" } });
 }
 
@@ -44,5 +44,5 @@ export async function POST(req: Request) {
         jar.set(c.name, "", { path: "/", domain, maxAge: 0 });
       });
   }
-  return NextResponse.redirect(new URL("/admin/login", req.url));
+  return NextResponse.redirect(new URL("/admin/login?toast=logout", req.url));
 }

@@ -48,7 +48,7 @@ export default async function CallsPage({
 }: {
   searchParams?: Promise<{ ok?: string; error?: string }>;
 }) {
-  const sp = (await searchParams) ?? {};
+  await searchParams;
   const jar = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -109,7 +109,7 @@ export default async function CallsPage({
     const next_follow_up_at = nextFollowUpRaw ? new Date(nextFollowUpRaw).toISOString() : null;
     const call_duration_seconds = duration ? Number(duration) : null;
 
-    await admin.from("outreach_logs").insert({
+    const { error: insertErr } = await admin.from("outreach_logs").insert({
       business_id: businessId,
       user_id: me.id,
       channel: "call",
@@ -119,6 +119,7 @@ export default async function CallsPage({
       follow_up_required: followUpRequired,
       next_action_at: next_follow_up_at,
     });
+    if (insertErr) redirect("/admin/calls?error=call_log_failed");
 
     const nextStatus =
       outcome === "booked_audit"
@@ -133,7 +134,7 @@ export default async function CallsPage({
                 ? "follow_up"
                 : "contacted";
 
-    await admin
+    const { error: updateErr } = await admin
       .from("businesses")
       .update({
         status: nextStatus,
@@ -141,17 +142,22 @@ export default async function CallsPage({
         next_follow_up_at,
       })
       .eq("id", businessId);
+    if (updateErr) redirect("/admin/calls?error=call_log_failed");
 
-    redirect("/admin/calls?ok=1");
+    redirect("/admin/calls?toast=call_logged");
   }
 
-  const { data: queue } = await admin
+  let queueQuery = admin
     .from("businesses")
     .select("id, business_name, status, next_follow_up_at")
     .or("status.eq.new,status.eq.follow_up,status.eq.assigned")
     .order("next_follow_up_at", { ascending: true })
     .order("created_at", { ascending: false })
     .limit(25);
+  if (me.role === "caller") {
+    queueQuery = queueQuery.eq("assigned_to_user_id", me.id);
+  }
+  const { data: queue } = await queueQuery;
 
   const { data: recent } = await admin
     .from("outreach_logs")
@@ -201,17 +207,6 @@ export default async function CallsPage({
             <div className="text-sm font-semibold tracking-tight">Quick Log Call</div>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {sp.ok ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                Saved.
-              </div>
-            ) : null}
-            {sp.error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Could not save call log.
-              </div>
-            ) : null}
-
             <form action={logCall} className="grid gap-2">
               <div className="grid gap-2">
                 <Label htmlFor="business_id">Business</Label>
